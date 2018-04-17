@@ -18,6 +18,7 @@
     }
 
     .editable:empty::before {
+      color: #ccc;
       content: attr(title);
     }
 

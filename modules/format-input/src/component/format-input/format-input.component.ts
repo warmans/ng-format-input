@@ -1,5 +1,4 @@
 import {Component, ElementRef, Input, OnInit, Renderer2, ViewChild} from '@angular/core';
-import {Renderer3} from "@angular/core/src/render3/renderer";
 
 @Component({
   selector: 'format-input',
@@ -42,10 +41,10 @@ export class FormatInputComponent implements OnInit {
 
     this.model.tokens.forEach((tok, i) => {
       const tokEl = this.renderer.createElement('span');
-      tokEl.className = tok.type==TokenType.Editable ? ' editable' : 'text';
-      tokEl.textContent = tok.type==TokenType.Text ? tok.label : tok.value;
+      tokEl.className = tok.type == TokenType.Editable ? ' editable' : 'text';
+      tokEl.textContent = tok.type == TokenType.Text ? tok.label : tok.value;
       tokEl.title = (tok.conf ? tok.conf.name : '');
-      tokEl.contentEditable = (tok.type==TokenType.Editable);
+      tokEl.contentEditable = (tok.type == TokenType.Editable);
       tokEl.placeholder = tok.label;
       tokEl.style = `min-width: ${tok.label.length}ch`;
 
@@ -60,39 +59,40 @@ export class FormatInputComponent implements OnInit {
     this.renderer.appendChild(this.editableContent.nativeElement, rendered);
   }
 
-  onFocus() {
+  onKeyup(ev: KeyboardEvent) {
 
-  }
+    const activeToken = this.activeToken();
+    if (activeToken === null) {
+      return
+    }
 
-  focusPrevToken() {
-    const activeIndex = this.activeTokenIndex();
-    if (activeIndex  === 0 || activeIndex === this.model.tokens.length) {
-      return;
-    }
-    for (let i = activeIndex; i > 0; i--) {
-      if (this.model.tokens[i].type === TokenType.Editable) {
-        this.moveCaretTo(this.model.tokens[i].el, this.model.tokens[i].value.length);
-        return;
-      }
-    }
-  }
+    console.log(ev);
 
-  focusNextToken() {
-    const activeIndex = this.activeTokenIndex();
-    if (activeIndex  === 0 || activeIndex === this.model.tokens.length) {
-      return;
+    //update value
+    activeToken.value = activeToken.el.textContent;
+
+    const caretPos = this.caretPosition(activeToken.el);
+    switch (ev.key) {
+      case 'ArrowLeft':
+        if (caretPos === 0 && this.lastCaretPos === caretPos) {
+          //todo: move to previous editable token
+        }
+        break;
+      case 'ArrowRight':
+        if (caretPos === activeToken.value.length && this.lastCaretPos === caretPos) {
+          //todo: move to next editable token
+        }
+        break;
     }
-    for (let i = activeIndex; i < this.model.tokens.length; i++) {
-      if (this.model.tokens[i].type === TokenType.Editable) {
-        this.moveCaretTo(this.model.tokens[i].el, 0);
-        return;
-      }
-    }
+
+    // store the last position so we can detect when the user presses left/right a second time after
+    // reaching the start/end of the editable content.
+    this.lastCaretPos = caretPos;
   }
 
   activeToken(): Token {
     const i = this.activeTokenIndex();
-    if (i > 0 ) {
+    if (i > 0) {
       return this.model.tokens[i];
     }
     return null;
@@ -107,6 +107,30 @@ export class FormatInputComponent implements OnInit {
     return -1;
   }
 
+  prevToken(): Token {
+    const activeIndex = this.activeTokenIndex();
+    if (activeIndex === 0 || activeIndex === this.model.tokens.length) {
+      return;
+    }
+    for (let i = activeIndex; i > 0; i--) {
+      if (this.model.tokens[i].type === TokenType.Editable) {
+        return this.model.tokens[i];
+      }
+    }
+  }
+
+  nextToken() {
+    const activeIndex = this.activeTokenIndex();
+    if (activeIndex === 0 || activeIndex === this.model.tokens.length) {
+      return;
+    }
+    for (let i = activeIndex; i < this.model.tokens.length; i++) {
+      if (this.model.tokens[i].type === TokenType.Editable) {
+        return this.model.tokens[i];
+      }
+    }
+  }
+
   caretPosition(el: Element): number {
     const range = window.getSelection().getRangeAt(0);
     const selected = range.toString().length;
@@ -116,62 +140,10 @@ export class FormatInputComponent implements OnInit {
     preCaretRange.setEnd(range.endContainer, range.endOffset);
 
     if (selected) {
-      return  preCaretRange.toString().length - selected;
+      return preCaretRange.toString().length - selected;
     } else {
       return preCaretRange.toString().length;
     }
-  }
-
-  moveCaretTo(el: Element, position: number) {
-
-    // move to end (no idea why it doesn't work in the normal way)
-    if (el.textContent.length === position) {
-      let range, selection;
-      range = document.createRange();
-      range.selectNodeContents(this.editableContent.nativeElement);
-      range.collapse(false);
-      selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      return;
-    }
-
-    const sel = window.getSelection();
-    sel.collapse(el, position);
-  }
-
-  onKeyup(ev: KeyboardEvent) {
-
-    console.log(ev);
-
-    const activeTokenIndex = this.activeToken();
-    const activeToken = this.activeToken();
-    if (activeToken === name) {
-      return
-    }
-
-    //update value
-    activeToken.value = activeToken.el.textContent;
-
-
-    const caretPos = this.caretPosition(activeToken.el);
-
-    switch (ev.key) {
-      case 'ArrowLeft':
-        if (caretPos === 0 && this.lastCaretPos === caretPos) {
-          this.focusPrevToken();
-        }
-        break;
-      case 'ArrowRight':
-        if (caretPos === activeToken.value.length && this.lastCaretPos === caretPos) {
-          this.focusNextToken();
-        }
-        break;
-    }
-
-    // store the last position so we can detect when the user presses left/right a second time after
-    // reaching the start/end of the editable content.
-    this.lastCaretPos = caretPos;
   }
 }
 
