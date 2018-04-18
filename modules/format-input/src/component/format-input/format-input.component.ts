@@ -1,4 +1,4 @@
-import {Component, ElementRef, Input, OnInit, Renderer2, ViewChild} from '@angular/core';
+import {Component, ElementRef, EventEmitter, Input, OnInit, Output, Renderer2, ViewChild} from '@angular/core';
 
 @Component({
   selector: 'format-input',
@@ -10,9 +10,20 @@ export class FormatInputComponent implements OnInit {
   @ViewChild('editableContent')
   editableContent: ElementRef;
 
-  @Input()
-  format: Format = {
-    format: 'http://{sub}.{domain}.{tld}/login',
+  @Output()
+  onValueUpdate: EventEmitter<{[index: string]: string}> = new EventEmitter<{[p: string]: string}>();
+
+  @Input('format')
+  set format(fmt: Format) {
+    this.fmt = fmt;
+    this.update();
+  }
+  get format(): Format {
+    return this.fmt;
+  }
+
+  private fmt: Format = {
+    layout: 'http://{sub}.{domain}.{tld}/login',
     configs: [
       {name: "sub", description: "first part of address"},
       {name: "domain", description: "second part of address"},
@@ -20,18 +31,19 @@ export class FormatInputComponent implements OnInit {
     ],
   };
 
-  model: Model;
+  public model: Model;
 
   private lastCaretPos: number;
 
   constructor(private renderer: Renderer2) {
-
   }
 
   ngOnInit(): void {
-    this.model = new Model(this.format);
-    console.log(this.model);
+  }
 
+  update(): void {
+    this.model = new Model(this.fmt);
+    console.log(this.model);
     this.render();
   }
 
@@ -42,11 +54,11 @@ export class FormatInputComponent implements OnInit {
     this.model.tokens.forEach((tok, i) => {
       const tokEl = this.renderer.createElement('span');
       tokEl.className = tok.type == TokenType.Editable ? ' editable' : 'text';
-      tokEl.textContent = tok.type == TokenType.Text ? tok.label : tok.value;
+      tokEl.textContent = tok.type == TokenType.Text ? tok.text : tok.value;
       tokEl.title = (tok.conf ? tok.conf.name : '');
       tokEl.contentEditable = (tok.type == TokenType.Editable);
-      tokEl.placeholder = tok.label;
-      tokEl.style = `min-width: ${tok.label.length}ch`;
+      tokEl.placeholder = tok.text;
+      tokEl.style = `min-width: ${tok.text.length}ch`;
 
       tok.el = tokEl;
       this.renderer.appendChild(rendered, tokEl);
@@ -66,10 +78,9 @@ export class FormatInputComponent implements OnInit {
       return
     }
 
-    console.log(ev);
-
     //update value
     activeToken.value = activeToken.el.textContent;
+    this.onValueUpdate.next(this.model.value());
 
     const caretPos = this.caretPosition(activeToken.el);
     switch (ev.key) {
@@ -151,53 +162,69 @@ enum TokenType {Text, Editable}
 
 class Model {
 
-  public raw: string;
-  public tokens: Token[];
+  public raw: string = '';
+  public tokens: Token[] = [];
 
   constructor(fmt: Format) {
-    this.raw = fmt.format;
-    this.tokens = this.parse(fmt.format);
+    if (fmt === undefined || fmt === null || fmt.layout === '') {
+      return;
+    }
+    this.raw = fmt.layout;
+    this.tokens = this.parse(fmt.layout);
     this.tokens.forEach(tok => {
-      fmt.configs.forEach(prop => {
-        if (prop.name === tok.label) {
-          tok.conf = prop;
-        }
-      })
+      tok.conf = {name: tok.text};
+      if (fmt.configs) {
+        fmt.configs.forEach(prop => {
+          if (prop.name === tok.text) {
+            tok.conf = Object.assign(tok.conf, prop);
+          }
+        })
+      }
     });
   }
 
   private parse(raw: string): Token[] {
     let tokens = [];
-    let curToken: Token = {type: TokenType.Text, label: '', value: ''};
+    let curToken: Token = {type: TokenType.Text, text: '', value: ''};
     for (let i = 0; i < raw.length; i++) {
       let curChar = raw.charAt(i);
       switch (curChar) {
         case '{':
-          if (curToken.label.length > 0) {
+          if (curToken.text.length > 0) {
             tokens.push(curToken);
           }
-          curToken = {type: TokenType.Editable, label: '', value: ''};
+          curToken = {type: TokenType.Editable, text: '', value: ''};
           break;
         case '}':
-          if (curToken.label.length > 0) {
+          if (curToken.text.length > 0) {
             tokens.push(curToken);
           }
-          curToken = {type: TokenType.Text, label: '', value: ''};
+          curToken = {type: TokenType.Text, text: '', value: ''};
           break;
         default:
-          curToken.label += curChar;
+          curToken.text += curChar;
       }
     }
-    if (curToken.label.length > 0) {
+    if (curToken.text.length > 0) {
       tokens.push(curToken);
     }
     return tokens;
+  }
+
+  public value(): {[index: string]: string } {
+    let v: {[index: string]: string } = {};
+    this.tokens.forEach((tok: Token) => {
+      if (tok.type === TokenType.Editable) {
+        v[tok.conf.name] = tok.value;
+      }
+    });
+    return v;
   }
 }
 
 interface Token {
   type: TokenType;
-  label: string;
+  text: string;
   value: string;
   conf?: TokenConfig;
   el?: Element;
@@ -205,12 +232,12 @@ interface Token {
 
 
 export interface Format {
-  format: string;
-  configs: TokenConfig[];
+  layout: string;
+  configs?: TokenConfig[];
 }
 
 export interface TokenConfig {
   name: string;
-  description: string;
+  description?: string;
 }
 
