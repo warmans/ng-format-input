@@ -1,4 +1,5 @@
 import {Component, ElementRef, EventEmitter, Input, OnInit, Output, Renderer2, ViewChild} from '@angular/core';
+import {valueSource} from "../dropdown/dropdown.component";
 
 @Component({
   selector: 'format-input',
@@ -22,16 +23,13 @@ export class FormatInputComponent implements OnInit {
     return this.fmt;
   }
 
-  private fmt: Format = {
-    layout: 'http://{sub}.{domain}.{tld}/login',
-    configs: [
-      {name: "sub", description: "first part of address"},
-      {name: "domain", description: "second part of address"},
-      {name: "tld", description: "third part of address"},
-    ],
-  };
+  private fmt: Format;
 
   public model: Model;
+
+  public keyboardEvents: EventEmitter<KeyboardEvent> = new EventEmitter();
+
+  public lastActiveToken: Token;
 
   private lastCaretPos: number;
 
@@ -43,7 +41,6 @@ export class FormatInputComponent implements OnInit {
 
   update(): void {
     this.model = new Model(this.fmt);
-    console.log(this.model);
     this.render();
   }
 
@@ -71,27 +68,35 @@ export class FormatInputComponent implements OnInit {
     this.renderer.appendChild(this.editableContent.nativeElement, rendered);
   }
 
+  onKeydown(ev: KeyboardEvent): boolean {
+    if (ev.key === 'Enter') {
+      return false;
+    }
+  }
+
   onKeyup(ev: KeyboardEvent) {
 
-    const activeToken = this.activeToken();
-    if (activeToken === null) {
-      return
+    this.lastActiveToken = this.activeToken();
+    if (this.lastActiveToken === null) {
+      return;
     }
 
-    //update value
-    activeToken.value = activeToken.el.textContent;
-    this.onValueUpdate.next(this.model.value());
+    // propagate keyboard event
+    this.keyboardEvents.next(ev);
 
-    const caretPos = this.caretPosition(activeToken.el);
+    // ensure value and textContent are consistent
+    this.updateActiveTokenValue([this.lastActiveToken.el.textContent]);
+
+    const caretPos = this.caretPosition(this.lastActiveToken.el);
     switch (ev.key) {
       case 'ArrowLeft':
         if (caretPos === 0 && this.lastCaretPos === caretPos) {
-          //todo: move to previous editable token
+          // todo: move to previous editable token
         }
         break;
       case 'ArrowRight':
-        if (caretPos === activeToken.value.length && this.lastCaretPos === caretPos) {
-          //todo: move to next editable token
+        if (caretPos === this.lastActiveToken.value.length && this.lastCaretPos === caretPos) {
+          // todo: move to next editable token
         }
         break;
     }
@@ -155,6 +160,14 @@ export class FormatInputComponent implements OnInit {
     } else {
       return preCaretRange.toString().length;
     }
+  }
+
+  updateActiveTokenValue(value: string[]) {
+    if (!this.lastActiveToken) {
+      return;
+    }
+    this.model.setTokenValue(this.lastActiveToken, value.join(','));
+    this.onValueUpdate.next(this.model.value());
   }
 }
 
@@ -220,6 +233,16 @@ class Model {
     });
     return v;
   }
+
+  public setTokenValue(token: Token, value: string) {
+    token.value = value;
+    token.el.textContent = value;
+    console.log(token, value);
+  }
+
+  public editableTokens(): Token[] {
+    return this.tokens.filter(t => t.type === TokenType.Editable);
+  }
 }
 
 interface Token {
@@ -238,6 +261,7 @@ export interface Format {
 
 export interface TokenConfig {
   name: string;
-  description?: string;
+  valueSource?: valueSource;
 }
+
 

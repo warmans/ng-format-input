@@ -2,5 +2,14 @@
   class="format-input"
   spellcheck="false"
   (keyup)="onKeyup($event)"
+  (keydown)="onKeydown($event)"
   #editableContent
 ></div>
+<div class="dropdown" *ngFor="let tok of model.editableTokens()">
+  <app-dropdown
+    [tokenConf]="tok.conf"
+    [keyboardEvents]="keyboardEvents"
+    [filter]="tok.value"
+    (onValue)="model.setTokenValue(tok, $event)">
+  </app-dropdown>
+</div>

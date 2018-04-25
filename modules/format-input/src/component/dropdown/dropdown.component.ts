@@ -1,14 +1,20 @@
-import {Component, EventEmitter, Input, OnInit, Output} from '@angular/core';
+import {Component, EventEmitter, Input, OnDestroy, OnInit, Output} from '@angular/core';
 import {Subscription} from 'rxjs/Subscription';
 import 'rxjs/add/operator/debounceTime';
+import {Observable} from "rxjs/Observable";
+import {TokenConfig} from "../format-input/format-input.component";
+
+export type valueSource = (context: {[index: string]: any}, query: string, page: number, pagesize: number) => Observable<string[]>;
 
 @Component({
   selector: 'app-dropdown',
   templateUrl: './dropdown.component.html',
   styleUrls: ['./dropdown.component.scss'],
 })
-export class DropdownComponent implements OnInit {
+export class DropdownComponent implements OnInit, OnDestroy {
 
+  @Input()
+  tokenConf: TokenConfig;
 
   @Input()
   valueSourcePaging: boolean;
@@ -33,7 +39,9 @@ export class DropdownComponent implements OnInit {
   pageSize: 10;
 
   @Output()
-  onValue: EventEmitter<string[]> = new EventEmitter();
+  onValue: EventEmitter<string> = new EventEmitter();
+
+  active: boolean = false;
 
   valuesSelected: string[] = [];
 
@@ -54,9 +62,10 @@ export class DropdownComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.keyboardEvents.subscribe(key => this.onKeypress(key));
+    this.keyboardEvents.subscribe((key) => {
+      this.onKeypress(key);
+    });
 
-    this.fetchValuesFromSource(this._filter);
     this.filterChange.asObservable().debounceTime(100).subscribe(value => {
       this.fetchValuesFromSource(value);
     });
@@ -64,20 +73,30 @@ export class DropdownComponent implements OnInit {
     this.valuesSelected = [];
   }
 
+  ngOnDestroy(): void {
+    if (this.valueSub) {
+      this.valueSub.unsubscribe();
+    }
+  }
+
   selectMulti() {
     if (this.enableMultiselect) {
-      this.onValue.next(this.valuesSelected);
+      this.onValue.next(this.valuesSelected.join(', '));
     }
   }
 
   select(value: string) {
     this.toggleSelected(value);
     if (!this.enableMultiselect) {
-      this.onValue.next([value]);
+      this.onValue.next(value);
     }
+    this.active = false;
   }
 
   onKeypress(key: KeyboardEvent) {
+
+    this.active = true;
+
     switch (key.code) {
       case 'ArrowDown':
         this.focusedValue = (this.focusedValue >= this.values.length - 1) ? 0 : this.focusedValue + 1;
@@ -94,7 +113,15 @@ export class DropdownComponent implements OnInit {
   }
 
   fetchValuesFromSource(filter: string) {
-
+    if (!this.tokenConf || !this.tokenConf.valueSource) {
+      return;
+    }
+    if (this.valueSub) {
+      this.valueSub.unsubscribe();
+    }
+    this.valueSub = this.tokenConf.valueSource({}, filter, this.page, this.pageSize).subscribe((values) => {
+      this.values = values;
+    });
   }
 
   pageBack() {

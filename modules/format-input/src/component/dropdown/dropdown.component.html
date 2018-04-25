@@ -1,4 +1,5 @@
-<div class="dropdown-container" *ngIf="values.length > 0 || valueSource">
+<div class="dropdown-container" *ngIf="active && tokenConf.valueSource && values.length > 0">
+
   <div class="selected-values" *ngIf="enableMultiselect">
     <div>
       <div class="selected" *ngFor="let s of valuesSelected; let i = index;" (click)="toggleSelected(s)">{{s}}</div>
@@ -10,10 +11,10 @@
     <div class="value" *ngFor="let value of values; let i = index;" (click)="select(value)" [ngClass]="{'active': i === focusedValue,'selected': isSelected(value.value)}">
         {{value}}
     </div>
-    <div *ngIf="values.length === 0 && valueSource">No values</div>
+    <div *ngIf="values.length === 0 && tokenConf.valueSource">No values</div>
   </div>
 
-  <div class="paging" *ngIf="valueSourcePaging && this.valueSource">
+  <div class="paging" *ngIf="valueSourcePaging && tokenConf.valueSource">
     <div class="left" (click)="pageBack()" [ngClass]="{'enabled': this.page > 0}">PREV</div>
     <div class="cur">{{page}}</div>
     <div class="left" (click)="pageForward()" [ngClass]="{'enabled': values.length === pageSize}">NEXT</div>
